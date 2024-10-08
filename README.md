@@ -8,7 +8,7 @@
 2. png图片解构: 支持将含有隐藏文件的png图片内的隐藏文件解构并保存出来。
 3. png图片清洗: 支持将含有隐藏文件的png图片进行清洗, 即清除掉其内的所有隐藏文件。
 
-![1](C:\Users\15634\PycharmProjects\file_conceal\demo_img\1.png)
+![1](demo_img\1.png)
 
 ## [补充]
 
