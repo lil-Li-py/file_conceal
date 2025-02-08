@@ -2,7 +2,7 @@ import os
 import re
 
 
-def encrypt_main(prototype_file, target_files, out_file_name='default', is_remove=False):
+def encrypt_main(prototype_file, target_files, out_file_name='result', is_remove=False):
     """
     隐藏文件专用
     :param prototype_file: 原型文件
@@ -11,7 +11,8 @@ def encrypt_main(prototype_file, target_files, out_file_name='default', is_remov
     :param is_remove: 是否删除待隐藏的文件
     :return:
     """
-    with open(f"{out_file_name}.png", 'wb') as o, open(prototype_file, 'rb') as p:
+    out_file_name = os.path.join(os.path.dirname(prototype_file), out_file_name+'.png')
+    with open(out_file_name, 'wb') as o, open(prototype_file, 'rb') as p:
         o.write(p.read())
         if os.path.isdir(target_files):
             for target_file in os.listdir(target_files):

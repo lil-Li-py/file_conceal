@@ -16,7 +16,7 @@ class MyGUI:
         self.wash_file = None
         self.check_value = tk.BooleanVar()
         self.focused = False
-        self.name = 'default'
+        self.name = 'result'
         self.is_all = 0
 
         self.root.title('文件隐写')
@@ -46,7 +46,7 @@ class MyGUI:
         button_1_2 = tk.Button(frame_1, text='取消', command=lambda: self.cancel(1), width=8, font=('微软雅黑', 10))
         button_1_2.grid(row=0, column=2, padx=10)
         self.entry_1_1 = entry_1_1 = tk.Entry(frame_1, width=20, font=('微软雅黑', 10), validatecommand=self.focus_input, validate='focusin')
-        entry_1_1.insert(0, '输出文件名(默认为default)')
+        entry_1_1.insert(0, '输出文件名(默认为result)')
         entry_1_1.grid(row=1, column=0, padx=12, sticky='w', ipady=5, pady=5)
         self.check_box_1_1 = check_box_1_1 = tk.Checkbutton(frame_1, text='是否删除所有待隐藏的文件', variable=self.check_value)
         check_box_1_1.grid(row=1, column=0, sticky='e', columnspan=2)
@@ -169,7 +169,7 @@ class MyGUI:
 
     def encrypt(self):
         if self.focused:
-            self.name = self.entry_1_1.get() if self.entry_1_1.get() else 'default'
+            self.name = self.entry_1_1.get() if self.entry_1_1.get() else 'result'
         if not self.prototype_file:
             messagebox.showerror('', '请先选择原型文件')
             return
