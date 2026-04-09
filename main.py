@@ -126,7 +126,8 @@ class HiddenFileChunk:
 
 
 class FileConcealService:
-    def detect_image_suffix(self, file_path: str):
+    @staticmethod
+    def detect_image_suffix(file_path: str):
         with open(file_path, "rb") as image_file:
             head = image_file.read(16)
 
@@ -153,7 +154,8 @@ class FileConcealService:
 
         return detected_suffix
 
-    def iter_target_paths(self, target_files: str) -> Iterable[str]:
+    @staticmethod
+    def iter_target_paths(target_files: str) -> Iterable[str]:
         if os.path.isdir(target_files):
             for entry in os.scandir(target_files):
                 if entry.is_file():
@@ -179,7 +181,8 @@ class FileConcealService:
         if os.path.exists(output_path) and not allow_same_path_replace:
             raise FileExistsError(f"输出文件已存在: {output_path}")
 
-    def build_encoded_chunk(self, file_path: str) -> bytes:
+    @staticmethod
+    def build_encoded_chunk(file_path: str) -> bytes:
         file_name = os.path.basename(file_path).encode("utf-8")
         with open(file_path, "rb") as source:
             payload = source.read()
