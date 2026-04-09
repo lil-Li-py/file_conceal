@@ -198,7 +198,8 @@ class FileConcealService:
             )
         )
 
-    def iter_chunks(self, blob: bytes):
+    @staticmethod
+    def iter_chunks(blob: bytes):
         cursor = 0
         blob_length = len(blob)
 
