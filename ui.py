@@ -1,244 +1,327 @@
-import time
+import os
 import tkinter as tk
-from tkinter import filedialog
-from tkinter import messagebox
+from tkinter import filedialog, messagebox, ttk
 
-from main import *
+from main import decrypt_main, encrypt_main, img_wash
+
+
+IMAGE_FILE_TYPES = [
+    ("支持的图片", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+    ("PNG", "*.png"),
+    ("JPG", "*.jpg *.jpeg"),
+    ("GIF", "*.gif"),
+    ("BMP", "*.bmp"),
+    ("WEBP", "*.webp"),
+]
+
+WINDOW_BG = "#f6f7fb"
+CARD_BG = "#ffffff"
+TITLE_COLOR = "#1f2937"
+TEXT_COLOR = "#4b5563"
+ACCENT = "#2563eb"
 
 
 class MyGUI:
     def __init__(self):
         self.root = tk.Tk()
-        # 默认参数
-        self.prototype_file = None
-        self.target_files = None
-        self.target_file = None
-        self.wash_file = None
-        self.check_value = tk.BooleanVar()
-        self.focused = False
-        self.name = 'result'
-        self.is_all = 0
+        self.root.title("文件隐写工具")
+        self.root.geometry("920x650")
+        self.root.minsize(920, 650)
+        self.root.configure(bg=WINDOW_BG)
 
-        self.root.title('文件隐写')
-        self.root.geometry(f'+{int(self.root.winfo_screenwidth()/3)}+{int(self.root.winfo_screenheight()/4)}')
-        self.root.resizable(False, False)
-        self.root.iconbitmap('')
-        self.root.protocol('WM_DELETE_WINDOW', self.close)
-        self.set_widget()
+        self.prototype_file = ""
+        self.target_files = ""
+        self.decrypt_file = ""
+        self.wash_file = ""
+        self.remove_source = tk.BooleanVar(value=True)
+
+        self.output_name_var = tk.StringVar(value="result")
+        self.extract_count_var = tk.StringVar(value="0")
+        self.prototype_var = tk.StringVar(value="未选择原图")
+        self.target_var = tk.StringVar(value="未选择待隐藏文件")
+        self.decrypt_var = tk.StringVar(value="未选择待解构图片")
+        self.wash_var = tk.StringVar(value="未选择待清洗图片")
+
+        self._configure_style()
+        self._build()
+        self.remove_source.trace_add("write", self._on_remove_source_change)
+        self._center_window()
         self.root.mainloop()
 
-    def close(self):
-        messagebox.showinfo('', '撒哟拉拉~')
-        self.root.destroy()
+    def _configure_style(self):
+        style = ttk.Style()
+        style.theme_use("clam")
 
-    def set_widget(self):
-        # 总体框架
-        frame = tk.LabelFrame(self.root, text='开 始 使 用', font=('微软雅黑', 20), labelanchor='n', fg='red', borderwidth=0)
-        frame.pack(ipady=5, ipadx=10, pady=10, padx=10)
+        style.configure("Page.TFrame", background=WINDOW_BG)
+        style.configure("Card.TFrame", background=CARD_BG, relief="flat")
+        style.configure(
+            "CardTitle.TLabel",
+            background=CARD_BG,
+            foreground=TITLE_COLOR,
+            font=("Microsoft YaHei UI", 13, "bold"),
+        )
+        style.configure(
+            "Body.TLabel",
+            background=CARD_BG,
+            foreground=TEXT_COLOR,
+            font=("Microsoft YaHei UI", 10),
+        )
+        style.configure(
+            "Path.TLabel",
+            background="#f8fafc",
+            foreground="#111827",
+            font=("Consolas", 9),
+            padding=(10, 8),
+        )
+        style.configure(
+            "Primary.TButton",
+            font=("Microsoft YaHei UI", 10, "bold"),
+            padding=(10, 6),
+        )
+        style.map(
+            "Primary.TButton",
+            background=[("active", "#1d4ed8"), ("!disabled", ACCENT)],
+            foreground=[("!disabled", "#ffffff")],
+        )
+        style.configure("Secondary.TButton", padding=(10, 6), font=("Microsoft YaHei UI", 10))
+        style.configure(
+            "Card.TLabelframe",
+            background=CARD_BG,
+            borderwidth=0,
+            relief="flat",
+            padding=14,
+        )
+        style.configure(
+            "Card.TLabelframe.Label",
+            background=CARD_BG,
+            foreground=TITLE_COLOR,
+            font=("Microsoft YaHei UI", 12, "bold"),
+        )
+        style.configure("Card.TEntry", padding=6, fieldbackground="#ffffff")
 
-        # 隐写子框架1
-        frame_1 = tk.LabelFrame(frame, relief='ridge', borderwidth=5)
-        frame_1.pack(pady=5)
-        label_1_1 = tk.Label(frame_1, text='选择原型文件(注意一定得是png格式的!!!)', font=('微软雅黑', 12))
-        label_1_1.grid(row=0, column=0, padx=10, sticky='w')
-        self.button_1_1 = button_1_1 = tk.Button(frame_1, text='选择', command=lambda: self.selcet_file(1), width=8, font=('微软雅黑', 10))
-        button_1_1.grid(row=0, column=1, padx=10)
-        button_1_2 = tk.Button(frame_1, text='取消', command=lambda: self.cancel(1), width=8, font=('微软雅黑', 10))
-        button_1_2.grid(row=0, column=2, padx=10)
-        self.entry_1_1 = entry_1_1 = tk.Entry(frame_1, width=20, font=('微软雅黑', 10), validatecommand=self.focus_input, validate='focusin')
-        entry_1_1.insert(0, '输出文件名(默认为result)')
-        entry_1_1.grid(row=1, column=0, padx=12, sticky='w', ipady=5, pady=5)
-        self.check_box_1_1 = check_box_1_1 = tk.Checkbutton(frame_1, text='是否删除所有待隐藏的文件', variable=self.check_value)
-        check_box_1_1.grid(row=1, column=0, sticky='e', columnspan=2)
-        # 显示已选择的文件
+    def _build(self):
+        page = ttk.Frame(self.root, style="Page.TFrame", padding=24)
+        page.pack(fill="both", expand=True)
+        page.columnconfigure(0, weight=1)
 
-        # 隐写子框架2
-        frame_2 = tk.LabelFrame(frame, relief='ridge', borderwidth=5)
-        frame_2.pack(pady=5)
-        label_2_1 = tk.Label(frame_2, text='选择要隐写的文件或文件夹', font=('微软雅黑', 12))
-        label_2_1.grid(row=0, column=0, padx=10, sticky='w')
-        self.button_2_1 = button_2_1 = tk.Button(frame_2, text='文件选择', command=lambda: self.selcet_file(2), width=8, font=('微软雅黑', 10))
-        self.button_2_2 = button_2_2 = tk.Button(frame_2, text='文件夹选择', command=self.select_dir, width=8, font=('微软雅黑', 10))
-        button_2_3 = tk.Button(frame_2, text='取消', command=lambda: self.cancel(2), width=8, font=('微软雅黑', 10))
-        button_2_4 = tk.Button(frame_2, text='开始隐写', command=self.encrypt, width=8, font=('微软雅黑', 10))
-        button_2_1.grid(row=0, column=1, padx=9)
-        button_2_2.grid(row=0, column=2, padx=9)
-        button_2_3.grid(row=0, column=3, padx=8, pady=5)
-        button_2_4.grid(row=1, column=1, padx=10, pady=5, ipadx=8, sticky='e')
+        header = ttk.Frame(page, style="Page.TFrame")
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 18))
+        header.columnconfigure(0, weight=1)
 
-        # 解构子框架
-        frame_3 = tk.LabelFrame(frame, relief='ridge', borderwidth=5)
-        frame_3.pack()
-        label_3_1 = tk.Label(frame_3, text='选择要解构的文件', font=('微软雅黑', 12))
-        label_3_1.grid(row=0, column=0, padx=10)
-        self.button_3_1 = button_3_1 = tk.Button(frame_3, text='文件选择', command=lambda: self.selcet_file(3), width=8, font=('微软雅黑', 10))
-        button_3_1.grid(row=0, column=1, padx=10)
-        button_3_2 = tk.Button(frame_3, text='取消', command=lambda: self.cancel(3), width=8, font=('微软雅黑', 10))
-        button_3_2.grid(row=0, column=2, padx=8)
-        button_3_3 = tk.Button(frame_3, text='解构文件', command=self.decrypt, width=8, font=('微软雅黑', 10))
-        button_3_3.grid(row=0, column=3, padx=10)
-        label_3_2 = tk.Label(frame_3, text='输出文件个数(默认为全部文件)', font=('微软雅黑', 10))
-        self.entry_3_1 = entry_3_1 = tk.Entry(frame_3, width=3, font=('微软雅黑', 10))
-        label_3_2.grid(row=1, column=0, padx=10, sticky='w')
-        entry_3_1.grid(row=1, column=1, pady=10, sticky='w')
+        ttk.Label(
+            header,
+            text="图片文件隐藏 / 解构 / 清洗",
+            style="CardTitle.TLabel",
+            font=("Microsoft YaHei UI", 18, "bold"),
+            background=WINDOW_BG,
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            header,
+            text="支持 PNG、JPG/JPEG、GIF、BMP、WEBP 作为载体图片，待隐藏文件类型不限。",
+            foreground=TEXT_COLOR,
+            background=WINDOW_BG,
+            font=("Microsoft YaHei UI", 10),
+        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
 
-        # 图片清洗操作子框架
-        frame_4 = tk.LabelFrame(frame, relief='ridge', borderwidth=5)
-        frame_4.pack(pady=5)
-        label_4_1 = tk.Label(frame_4, text='选择要清洗的文件', font=('微软雅黑', 12))
-        label_4_1.grid(row=0, column=0, padx=10, sticky='w')
-        self.button_4_1 = button_4_1 = tk.Button(frame_4, text='文件选择', command=lambda: self.selcet_file(4), width=8, font=('微软雅黑', 10))
-        button_4_1.grid(row=0, column=1, padx=10)
-        button_4_2 = tk.Button(frame_4, text='取消', command=lambda: self.cancel(4), width=8, font=('微软雅黑', 10))
-        button_4_2.grid(row=0, column=2, padx=8)
-        button_4_3 = tk.Button(frame_4, text='开始清洗', command=self.wash, width=8, font=('微软雅黑', 10))
-        button_4_3.grid(row=0, column=3, padx=10)
+        self._build_encrypt_section(page).grid(row=1, column=0, sticky="ew", pady=(0, 14))
+        self._build_decrypt_section(page).grid(row=2, column=0, sticky="ew", pady=(0, 14))
+        self._build_wash_section(page).grid(row=3, column=0, sticky="ew")
 
-        self.button_1_1_tooltip = Tooltip(self.button_1_1, '')
-        self.button_2_1_tooltip = Tooltip(self.button_2_1, '')
-        self.button_2_2_tooltip = Tooltip(self.button_2_2, '')
-        self.button_3_1_tooltip = Tooltip(self.button_3_1, '')
-        self.button_4_1_tooltip = Tooltip(self.button_4_1, '')
+    def _center_window(self):
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = max((screen_width - width) // 2, 0)
+        y = max((screen_height - height) // 2, 0)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
 
+    def _build_encrypt_section(self, parent):
+        frame = ttk.LabelFrame(parent, text="1. 文件隐藏", style="Card.TLabelframe")
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
 
-    @staticmethod
-    def set_tooltip(tooltip, text):
-        tooltip.text = text
-        tooltip.set = True
+        ttk.Label(frame, text="原图", style="Body.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 10))
+        ttk.Button(frame, text="选择原图", style="Secondary.TButton", command=self._select_prototype).grid(row=0, column=1, sticky="w", pady=(0, 10))
+        ttk.Label(frame, textvariable=self.prototype_var, style="Path.TLabel").grid(row=0, column=2, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 10))
 
-    @staticmethod
-    def cancel_tooltip(tooltip):
-        tooltip.set = False
+        ttk.Label(frame, text="待隐藏内容", style="Body.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 10))
+        button_group = ttk.Frame(frame, style="Card.TFrame")
+        button_group.grid(row=1, column=1, sticky="w", pady=(0, 10))
+        ttk.Button(button_group, text="选择文件", style="Secondary.TButton", command=self._select_target_file).pack(side="left")
+        ttk.Button(button_group, text="选择文件夹", style="Secondary.TButton", command=self._select_target_dir).pack(side="left", padx=(8, 0))
+        ttk.Label(frame, textvariable=self.target_var, style="Path.TLabel").grid(row=1, column=2, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 10))
 
-    def selcet_file(self, abc):
-        match abc:
-            case 1:
-                self.prototype_file = filedialog.askopenfilename(title='请选择一个原型文件', filetypes=[('png', '*.png')], initialdir=r'C:\Users\Administrator\Desktop')
-                if self.prototype_file:
-                    self.button_1_1.config(state='disabled')
-                    self.set_tooltip(self.button_1_1_tooltip, self.prototype_file)
-            case 2:
-                self.target_files = filedialog.askopenfilename(title='请选择要隐写的文件', filetypes=[('all', '*.*')])
-                if self.target_files:
-                    self.button_2_1.config(state='disabled')
-                    self.button_2_2.config(state='disabled')
-                    self.set_tooltip(self.button_2_1_tooltip, self.target_files)
-            case 3:
-                self.target_file = filedialog.askopenfilename(title='请选择要解构的文件', filetypes=[('png', '*.png')])
-                if self.target_file:
-                    self.button_3_1.config(state='disabled')
-                    self.set_tooltip(self.button_3_1_tooltip, self.target_file)
-            case 4:
-                self.wash_file = filedialog.askopenfilename(title='请选择要清洗的文件', filetypes=[('png', '*.png')])
-                if self.wash_file:
-                    self.button_4_1.config(state='disabled')
-                    self.set_tooltip(self.button_4_1_tooltip, self.wash_file)
+        ttk.Label(frame, text="输出文件名", style="Body.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(frame, textvariable=self.output_name_var, width=18, style="Card.TEntry").grid(row=2, column=1, sticky="w")
+        tk.Checkbutton(
+            frame,
+            text="隐藏后删除源文件",
+            variable=self.remove_source,
+            bg=CARD_BG,
+            fg=TEXT_COLOR,
+            activebackground=CARD_BG,
+            activeforeground=TEXT_COLOR,
+            selectcolor="#dbeafe",
+            font=("Microsoft YaHei UI", 10),
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        ).grid(row=2, column=2, sticky="w", padx=(12, 0))
+        ttk.Button(frame, text="开始隐藏", style="Primary.TButton", command=self.encrypt).grid(row=2, column=3, sticky="e")
+        return frame
 
-    def select_dir(self):
-        self.target_files = filedialog.askdirectory(title='请选择要隐写的文件夹')
-        if self.target_files:
-            self.button_2_1.config(state='disabled')
-            self.button_2_2.config(state='disabled')
-            self.set_tooltip(self.button_2_2_tooltip, self.target_files)
+    def _build_decrypt_section(self, parent):
+        frame = ttk.LabelFrame(parent, text="2. 文件解构", style="Card.TLabelframe")
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
 
-    def focus_input(self):
-        self.entry_1_1.delete(0, 'end')
-        self.focused = True
-        return self.focused
+        ttk.Label(frame, text="目标图片", style="Body.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 10))
+        ttk.Button(frame, text="选择图片", style="Secondary.TButton", command=self._select_decrypt_file).grid(row=0, column=1, sticky="w", pady=(0, 10))
+        ttk.Label(frame, textvariable=self.decrypt_var, style="Path.TLabel").grid(row=0, column=2, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 10))
 
-    def cancel(self, abc):
-        match abc:
-            case 1:
-                self.prototype_file = None
-                self.button_1_1.config(state='normal')
-                self.cancel_tooltip(self.button_1_1_tooltip)
-            case 2:
-                self.target_files = None
-                self.button_2_1.config(state='normal')
-                self.button_2_2.config(state='normal')
-                self.cancel_tooltip(self.button_2_1_tooltip)
-                self.cancel_tooltip(self.button_2_2_tooltip)
-            case 3:
-                self.target_file = None
-                self.button_3_1.config(state='normal')
-                self.cancel_tooltip(self.button_3_1_tooltip)
-            case 4:
-                self.wash_file = None
-                self.button_4_1.config(state='normal')
-                self.cancel_tooltip(self.button_4_1_tooltip)
+        ttk.Label(frame, text="提取数量", style="Body.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(frame, textvariable=self.extract_count_var, width=10, style="Card.TEntry").grid(row=1, column=1, sticky="w")
+        ttk.Label(frame, text="填 0 表示提取全部隐藏文件", style="Body.TLabel").grid(row=1, column=2, sticky="w", padx=(12, 0))
+        ttk.Button(frame, text="开始解构", style="Primary.TButton", command=self.decrypt).grid(row=1, column=3, sticky="e")
+        return frame
+
+    def _build_wash_section(self, parent):
+        frame = ttk.LabelFrame(parent, text="3. 图片清洗", style="Card.TLabelframe")
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(2, weight=1)
+
+        ttk.Label(frame, text="目标图片", style="Body.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ttk.Button(frame, text="选择图片", style="Secondary.TButton", command=self._select_wash_file).grid(row=0, column=1, sticky="w")
+        ttk.Label(frame, textvariable=self.wash_var, style="Path.TLabel").grid(row=0, column=2, sticky="ew", padx=(12, 0))
+        ttk.Button(frame, text="开始清洗", style="Primary.TButton", command=self.wash).grid(row=0, column=3, sticky="e", padx=(12, 0))
+        return frame
+
+    def _select_prototype(self):
+        path = filedialog.askopenfilename(title="选择原图", filetypes=IMAGE_FILE_TYPES)
+        if path:
+            self.prototype_file = path
+            self.prototype_var.set(path)
+            if self.remove_source.get():
+                self.output_name_var.set(os.path.splitext(os.path.basename(path))[0])
+            else:
+                self.output_name_var.set("result")
+
+    def _select_target_file(self):
+        path = filedialog.askopenfilename(title="选择待隐藏文件", filetypes=[("所有文件", "*.*")])
+        if path:
+            self.target_files = path
+            self.target_var.set(path)
+
+    def _select_target_dir(self):
+        path = filedialog.askdirectory(title="选择待隐藏文件夹")
+        if path:
+            self.target_files = path
+            self.target_var.set(path)
+
+    def _select_decrypt_file(self):
+        path = filedialog.askopenfilename(title="选择待解构图片", filetypes=IMAGE_FILE_TYPES)
+        if path:
+            self.decrypt_file = path
+            self.decrypt_var.set(path)
+
+    def _select_wash_file(self):
+        path = filedialog.askopenfilename(title="选择待清洗图片", filetypes=IMAGE_FILE_TYPES)
+        if path:
+            self.wash_file = path
+            self.wash_var.set(path)
+
+    def _reset_encrypt(self):
+        self.prototype_file = ""
+        self.target_files = ""
+        self.prototype_var.set("未选择原图")
+        self.target_var.set("未选择待隐藏文件")
+        self.output_name_var.set("result")
+        self.remove_source.set(True)
+
+    def _reset_decrypt(self):
+        self.decrypt_file = ""
+        self.decrypt_var.set("未选择待解构图片")
+        self.extract_count_var.set("0")
+
+    def _reset_wash(self):
+        self.wash_file = ""
+        self.wash_var.set("未选择待清洗图片")
+
+    def _on_remove_source_change(self, *_):
+        if self.remove_source.get():
+            if self.prototype_file:
+                self.output_name_var.set(os.path.splitext(os.path.basename(self.prototype_file))[0])
+        else:
+            self.output_name_var.set("result")
 
     def encrypt(self):
-        if self.focused:
-            self.name = self.entry_1_1.get() if self.entry_1_1.get() else 'result'
+        output_name = self.output_name_var.get().strip() or "result"
         if not self.prototype_file:
-            messagebox.showerror('', '请先选择原型文件')
+            messagebox.showerror("错误", "请先选择原图。")
             return
         if not self.target_files:
-            messagebox.showerror('', '请先选择要隐写的文件或文件夹')
+            messagebox.showerror("错误", "请先选择待隐藏的文件或文件夹。")
             return
-        messagebox.showinfo('', '开始执行~')
-        encrypt_main(self.prototype_file, self.target_files, out_file_name=self.name, is_remove=self.check_value.get())
-        messagebox.showinfo('', '执行完毕, 请查看~')
-        self.cancel(1)
-        self.cancel(2)
+
+        try:
+            encrypt_main(
+                self.prototype_file,
+                self.target_files,
+                out_file_name=output_name,
+                is_remove=self.remove_source.get(),
+            )
+        except Exception as exc:
+            messagebox.showerror("错误", str(exc))
+            return
+
+        messagebox.showinfo("完成", "文件隐藏完成。")
+        self._reset_encrypt()
 
     def decrypt(self):
+        if not self.decrypt_file:
+            messagebox.showerror("错误", "请先选择待解构图片。")
+            return
+
         try:
-            self.is_all = int(self.entry_3_1.get())
+            extract_count = int(self.extract_count_var.get().strip() or "0")
         except ValueError:
-            pass
-        finally:
-            self.entry_3_1.delete(0, 'end')
-        if not self.target_file:
-            messagebox.showerror('', '请先选择要解构的文件')
+            messagebox.showerror("错误", "提取数量必须是整数。")
             return
-        messagebox.showinfo('', '开始执行~')
-        res = decrypt_main(self.target_file, is_all=self.is_all)
-        if not res:
-            messagebox.showerror('', '抱歉当前文件中并无隐藏文件!!!')
+
+        try:
+            result = decrypt_main(self.decrypt_file, is_all=extract_count)
+        except Exception as exc:
+            messagebox.showerror("错误", str(exc))
             return
-        messagebox.showinfo('', '执行完毕, 请查看~')
-        self.cancel(3)
+
+        if not result:
+            self._reset_decrypt()
+            messagebox.showwarning("提示", "当前图片中没有可解构的隐藏文件。")
+            return
+
+        messagebox.showinfo("完成", "文件解构完成。")
+        self._reset_decrypt()
 
     def wash(self):
-        if not self.target_file:
-            messagebox.showerror('', '请先选择要清洗的文件')
+        if not self.wash_file:
+            messagebox.showerror("错误", "请先选择待清洗图片。")
             return
-        messagebox.showinfo('', '开始执行~')
-        res = img_wash(self.target_file)
-        if not res:
-            messagebox.showerror('', '抱歉当前文件中并无隐藏文件!!!')
+
+        try:
+            result = img_wash(self.wash_file)
+        except Exception as exc:
+            messagebox.showerror("错误", str(exc))
             return
-        messagebox.showinfo('', '执行完毕, 请查看~')
-        self.cancel(4)
+
+        if not result:
+            messagebox.showwarning("提示", "当前图片中没有可清洗的隐藏内容。")
+            return
+
+        messagebox.showinfo("完成", "图片清洗完成。")
+        self._reset_wash()
 
 
-class Tooltip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.set = False
-        self.tooltip = None
-        self.widget.bind("<Enter>", self.show_tooltip)
-        self.widget.bind("<Leave>", self.hide_tooltip)
-
-    def show_tooltip(self, event):
-        if self.tooltip is None and self.set:
-            time.sleep(0.5)
-            x, y, _, _ = self.widget.bbox("insert")
-            x += self.widget.winfo_rootx() + 25
-            y += self.widget.winfo_rooty() + 25
-            self.tooltip = tk.Toplevel(self.widget)
-            self.tooltip.wm_overrideredirect(True)
-            self.tooltip.wm_geometry(f"+{x}+{y}")
-            label = tk.Label(self.tooltip, text=self.text)
-            label.pack()
-
-    def hide_tooltip(self, event):
-        if self.tooltip is not None and self.set:
-            self.tooltip.destroy()
-            self.tooltip = None
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     MyGUI()
