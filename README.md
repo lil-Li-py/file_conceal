@@ -2,7 +2,7 @@
 
 一个用于将文件追加隐藏到图片末尾、并支持提取与清洗的桌面小工具，当前提供 `tkinter` 图形界面入口。
 
-![demo](demo_img/demo.png)
+![demo](./demo_img/demo.png)
 
 ## 功能
 
@@ -32,7 +32,7 @@
 python run.py
 ```
 
-程序入口位于 [run.py](/C:/Users/15634/PycharmProjects/file_conceal/run.py)，会启动图形界面。
+程序入口位于 [run.py](./run.py)，会启动图形界面。
 
 ## 使用流程
 
@@ -63,7 +63,7 @@ python run.py
 
 ## 核心逻辑
 
-- 隐藏内容写入格式位于 [main.py](/C:/Users/15634/PycharmProjects/file_conceal/main.py)
+- 隐藏内容写入格式位于 [main.py](./main.py)
 - 载体图片格式通过文件头识别，不只依赖扩展名
 - 文件内容在写入前会经过自定义 Base64 编码后再封装
 - 提取时会校验文件名并阻止覆盖已存在文件
