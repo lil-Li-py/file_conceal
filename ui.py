@@ -1,4 +1,4 @@
-import os
+﻿import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -22,37 +22,39 @@ ACCENT = "#2563eb"
 
 
 class MyGUI:
-    """渲染桌面界面，并协调用户操作与底层隐藏服务之间的交互。"""
     def __init__(self):
-        """初始化窗口状态、构建控件，并启动 Tkinter 事件循环。"""
         self.root = tk.Tk()
         self.root.title("文件隐写工具")
-        self.root.geometry("920x650")
-        self.root.minsize(920, 650)
+        self.root.geometry("920x700")
+        self.root.minsize(920, 700)
+        self.root.resizable(False, False)
         self.root.configure(bg=WINDOW_BG)
 
         self.prototype_file = ""
         self.target_files = ""
         self.decrypt_file = ""
         self.wash_file = ""
-        # 默认保留源文件，只有用户显式勾选时才删除。
+
         self.remove_source = tk.BooleanVar(value=False)
+        self.require_key_var = tk.BooleanVar(value=False)
 
         self.output_name_var = tk.StringVar(value="result")
         self.extract_count_var = tk.StringVar(value="0")
+        self.decrypt_key_var = tk.StringVar(value="")
         self.prototype_var = tk.StringVar(value="未选择原图")
         self.target_var = tk.StringVar(value="未选择待隐藏文件")
-        self.decrypt_var = tk.StringVar(value="未选择待解构图片")
+        self.decrypt_var = tk.StringVar(value="未选择待解析图片")
         self.wash_var = tk.StringVar(value="未选择待清洗图片")
+        self.key_status_var = tk.StringVar(value="当前模式：不需要密钥")
 
         self._configure_style()
         self._build()
         self.remove_source.trace_add("write", self._on_remove_source_change)
+        self.require_key_var.trace_add("write", self._on_require_key_change)
         self._center_window()
         self.root.mainloop()
 
     def _configure_style(self):
-        """配置整个应用共用的 ttk 样式。"""
         style = ttk.Style()
         style.theme_use("clam")
 
@@ -104,7 +106,6 @@ class MyGUI:
         style.configure("Card.TEntry", padding=6, fieldbackground="#ffffff")
 
     def _build(self):
-        """构建页面顶层布局，并挂载隐藏、提取、清洗三个功能区域。"""
         page = ttk.Frame(self.root, style="Page.TFrame", padding=24)
         page.pack(fill="both", expand=True)
         page.columnconfigure(0, weight=1)
@@ -115,7 +116,7 @@ class MyGUI:
 
         ttk.Label(
             header,
-            text="图片文件隐藏 / 解构 / 清洗",
+            text="图片文件隐藏 / 解析 / 清洗",
             style="CardTitle.TLabel",
             font=("Microsoft YaHei UI", 18, "bold"),
             background=WINDOW_BG,
@@ -133,7 +134,6 @@ class MyGUI:
         self._build_wash_section(page).grid(row=3, column=0, sticky="ew")
 
     def _center_window(self):
-        """根据当前窗口渲染后的尺寸，将其居中显示。"""
         self.root.update_idletasks()
         width = self.root.winfo_width()
         height = self.root.winfo_height()
@@ -143,8 +143,66 @@ class MyGUI:
         y = max((screen_height - height) // 2, 0)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
+    def _show_generated_key_dialog(self, output_name: str, generated_key: str):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("隐藏完成")
+        dialog.configure(bg=CARD_BG)
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        container = ttk.Frame(dialog, style="Card.TFrame", padding=18)
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            container,
+            text=f"文件隐藏完成，输出文件名：{output_name}",
+            style="CardTitle.TLabel",
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Label(
+            container,
+            text="本次自动生成的密钥如下，请复制保存，后续解析需要使用。",
+            style="Body.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(10, 8))
+
+        key_entry = ttk.Entry(container, width=36, style="Card.TEntry")
+        key_entry.grid(row=2, column=0, sticky="ew")
+        key_entry.insert(0, generated_key)
+        key_entry.state(["readonly"])
+
+        button_row = ttk.Frame(container, style="Card.TFrame")
+        button_row.grid(row=3, column=0, sticky="e", pady=(14, 0))
+
+        def copy_key():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(generated_key)
+            self.root.update()
+            messagebox.showinfo("已复制", "密钥已复制到剪贴板。", parent=dialog)
+
+        ttk.Button(button_row, text="复制密钥", style="Secondary.TButton", command=copy_key).pack(side="left")
+        ttk.Button(button_row, text="关闭", style="Primary.TButton", command=dialog.destroy).pack(side="left", padx=(8, 0))
+
+        dialog.update_idletasks()
+        dialog_width = dialog.winfo_width()
+        dialog_height = dialog.winfo_height()
+        root_x = self.root.winfo_rootx()
+        root_y = self.root.winfo_rooty()
+        root_width = self.root.winfo_width()
+        root_height = self.root.winfo_height()
+        x = root_x + max((root_width - dialog_width) // 2, 0)
+        y = root_y + max((root_height - dialog_height) // 2, 0)
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+
+        key_entry.state(["!readonly"])
+        key_entry.focus_set()
+        key_entry.selection_range(0, tk.END)
+        key_entry.state(["readonly"])
+
+        self.root.wait_window(dialog)
+
     def _build_encrypt_section(self, parent):
-        """创建用于选择载体图片和待隐藏文件的界面区域。"""
         frame = ttk.LabelFrame(parent, text="1. 文件隐藏", style="Card.TLabelframe")
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
@@ -160,8 +218,9 @@ class MyGUI:
         ttk.Button(button_group, text="选择文件夹", style="Secondary.TButton", command=self._select_target_dir).pack(side="left", padx=(8, 0))
         ttk.Label(frame, textvariable=self.target_var, style="Path.TLabel").grid(row=1, column=2, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 10))
 
-        ttk.Label(frame, text="输出文件名", style="Body.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 10))
-        ttk.Entry(frame, textvariable=self.output_name_var, width=18, style="Card.TEntry").grid(row=2, column=1, sticky="w")
+        ttk.Label(frame, text="输出文件名", style="Body.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=(0, 10))
+        ttk.Entry(frame, textvariable=self.output_name_var, width=18, style="Card.TEntry").grid(row=2, column=1, sticky="w", pady=(0, 10))
+
         tk.Checkbutton(
             frame,
             text="隐藏后删除源文件",
@@ -175,13 +234,28 @@ class MyGUI:
             relief="flat",
             bd=0,
             highlightthickness=0,
-        ).grid(row=2, column=2, sticky="w", padx=(12, 0))
-        ttk.Button(frame, text="开始隐藏", style="Primary.TButton", command=self.encrypt).grid(row=2, column=3, sticky="e")
+        ).grid(row=2, column=2, sticky="w", padx=(12, 0), pady=(0, 10))
+
+        tk.Checkbutton(
+            frame,
+            text="需要密钥",
+            variable=self.require_key_var,
+            bg=CARD_BG,
+            fg=TEXT_COLOR,
+            activebackground=CARD_BG,
+            activeforeground=TEXT_COLOR,
+            selectcolor="#dbeafe",
+            font=("Microsoft YaHei UI", 10),
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        ).grid(row=3, column=1, sticky="w")
+        ttk.Label(frame, textvariable=self.key_status_var, style="Body.TLabel").grid(row=3, column=2, sticky="w", padx=(12, 0))
+        ttk.Button(frame, text="开始隐藏", style="Primary.TButton", command=self.encrypt).grid(row=3, column=3, sticky="e")
         return frame
 
     def _build_decrypt_section(self, parent):
-        """创建用于从图片中提取隐藏文件的界面区域。"""
-        frame = ttk.LabelFrame(parent, text="2. 文件解构", style="Card.TLabelframe")
+        frame = ttk.LabelFrame(parent, text="2. 文件解析", style="Card.TLabelframe")
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
 
@@ -189,14 +263,17 @@ class MyGUI:
         ttk.Button(frame, text="选择图片", style="Secondary.TButton", command=self._select_decrypt_file).grid(row=0, column=1, sticky="w", pady=(0, 10))
         ttk.Label(frame, textvariable=self.decrypt_var, style="Path.TLabel").grid(row=0, column=2, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 10))
 
-        ttk.Label(frame, text="提取数量", style="Body.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 10))
-        ttk.Entry(frame, textvariable=self.extract_count_var, width=10, style="Card.TEntry").grid(row=1, column=1, sticky="w")
-        ttk.Label(frame, text="填 0 表示提取全部隐藏文件", style="Body.TLabel").grid(row=1, column=2, sticky="w", padx=(12, 0))
-        ttk.Button(frame, text="开始解构", style="Primary.TButton", command=self.decrypt).grid(row=1, column=3, sticky="e")
+        ttk.Label(frame, text="提取数量", style="Body.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=(0, 10))
+        ttk.Entry(frame, textvariable=self.extract_count_var, width=10, style="Card.TEntry").grid(row=1, column=1, sticky="w", pady=(0, 10))
+        ttk.Label(frame, text="填 0 表示提取全部隐藏文件", style="Body.TLabel").grid(row=1, column=2, sticky="w", padx=(12, 0), pady=(0, 10))
+
+        ttk.Label(frame, text="解密密钥", style="Body.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 10))
+        ttk.Entry(frame, textvariable=self.decrypt_key_var, width=24, style="Card.TEntry").grid(row=2, column=1, sticky="w")
+        ttk.Label(frame, text="无密钥模式可留空", style="Body.TLabel").grid(row=2, column=2, sticky="w", padx=(12, 0))
+        ttk.Button(frame, text="开始解析", style="Primary.TButton", command=self.decrypt).grid(row=2, column=3, sticky="e")
         return frame
 
     def _build_wash_section(self, parent):
-        """创建用于清除图片末尾隐藏数据的界面区域。"""
         frame = ttk.LabelFrame(parent, text="3. 图片清洗", style="Card.TLabelframe")
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(2, weight=1)
@@ -208,7 +285,6 @@ class MyGUI:
         return frame
 
     def _select_prototype(self):
-        """选择载体图片，并刷新建议的输出文件名。"""
         path = filedialog.askopenfilename(title="选择原图", filetypes=IMAGE_FILE_TYPES)
         if path:
             self.prototype_file = path
@@ -219,87 +295,63 @@ class MyGUI:
                 self.output_name_var.set("result")
 
     def _select_target_file(self):
-        """选择一个需要隐藏到图片中的源文件。"""
         path = filedialog.askopenfilename(title="选择待隐藏文件", filetypes=[("所有文件", "*.*")])
         if path:
             self.target_files = path
             self.target_var.set(path)
 
     def _select_target_dir(self):
-        """选择一个目录，并将其中的直接子文件作为隐藏内容。"""
         path = filedialog.askdirectory(title="选择待隐藏文件夹")
         if path:
             self.target_files = path
             self.target_var.set(path)
 
     def _select_decrypt_file(self):
-        """选择一张可能包含隐藏文件载荷的图片。"""
-        path = filedialog.askopenfilename(title="选择待解构图片", filetypes=IMAGE_FILE_TYPES)
+        path = filedialog.askopenfilename(title="选择待解析图片", filetypes=IMAGE_FILE_TYPES)
         if path:
             self.decrypt_file = path
             self.decrypt_var.set(path)
 
     def _select_wash_file(self):
-        """选择一张需要移除隐藏载荷的图片。"""
         path = filedialog.askopenfilename(title="选择待清洗图片", filetypes=IMAGE_FILE_TYPES)
         if path:
             self.wash_file = path
             self.wash_var.set(path)
 
     def _reset_encrypt(self):
-        """在完成操作或重新开始时，重置隐藏表单的状态。"""
         self.prototype_file = ""
         self.target_files = ""
         self.prototype_var.set("未选择原图")
         self.target_var.set("未选择待隐藏文件")
         self.output_name_var.set("result")
         self.remove_source.set(False)
+        self.require_key_var.set(False)
+        self.key_status_var.set("当前模式：不需要密钥")
 
     def _reset_decrypt(self):
-        """在完成操作或重新开始时，重置提取表单的状态。"""
         self.decrypt_file = ""
-        self.decrypt_var.set("未选择待解构图片")
+        self.decrypt_var.set("未选择待解析图片")
         self.extract_count_var.set("0")
+        self.decrypt_key_var.set("")
 
     def _reset_wash(self):
-        """在完成操作或重新开始时，重置清洗表单的状态。"""
         self.wash_file = ""
         self.wash_var.set("未选择待清洗图片")
 
     def _on_remove_source_change(self, *_):
-        """在切换“删除源文件”选项时，更新建议的输出文件名。"""
         if self.remove_source.get():
             if self.prototype_file:
                 self.output_name_var.set(os.path.splitext(os.path.basename(self.prototype_file))[0])
         else:
             self.output_name_var.set("result")
 
-    def _encrypt_legacy(self):
-        """校验隐藏参数，调用后端逻辑，并向用户反馈结果。"""
-        output_name = self.output_name_var.get().strip() or "result"
-        if not self.prototype_file:
-            messagebox.showerror("错误", "请先选择原图。")
-            return
-        if not self.target_files:
-            messagebox.showerror("错误", "请先选择待隐藏的文件或文件夹。")
-            return
-
-        try:
-            encrypt_main(
-                self.prototype_file,
-                self.target_files,
-                out_file_name=output_name,
-                is_remove=self.remove_source.get(),
-            )
-        except Exception as exc:
-            messagebox.showerror("错误", str(exc))
-            return
-
-        messagebox.showinfo("完成", "文件隐藏完成。")
-        self._reset_encrypt()
+    def _on_require_key_change(self, *_):
+        if self.require_key_var.get():
+            self.key_status_var.set("当前模式：需要密钥，隐藏成功后系统会生成并展示密钥")
+        else:
+            self.key_status_var.set("当前模式：不需要密钥")
 
     def encrypt(self):
-        """校验隐藏参数，处理输出重名冲突，并向用户反馈结果。"""
         output_name = self.output_name_var.get().strip() or "result"
         if not self.prototype_file:
             messagebox.showerror("错误", "请先选择原图。")
@@ -322,23 +374,26 @@ class MyGUI:
             self.output_name_var.set(output_name)
 
         try:
-            encrypt_main(
+            generated_key = encrypt_main(
                 self.prototype_file,
                 self.target_files,
                 out_file_name=output_name,
                 is_remove=self.remove_source.get(),
+                require_key=self.require_key_var.get(),
             )
         except Exception as exc:
             messagebox.showerror("错误", str(exc))
             return
 
-        messagebox.showinfo("完成", f"文件隐藏完成。\n输出文件名：{output_name}")
+        if generated_key:
+            self._show_generated_key_dialog(output_name, generated_key)
+        else:
+            messagebox.showinfo("完成", f"文件隐藏完成。\n输出文件名：{output_name}")
         self._reset_encrypt()
 
     def decrypt(self):
-        """校验提取参数，调用后端逻辑，并展示执行结果。"""
         if not self.decrypt_file:
-            messagebox.showerror("错误", "请先选择待解构图片。")
+            messagebox.showerror("错误", "请先选择待解析图片。")
             return
 
         try:
@@ -348,21 +403,24 @@ class MyGUI:
             return
 
         try:
-            result = decrypt_main(self.decrypt_file, is_all=extract_count)
+            result = decrypt_main(
+                self.decrypt_file,
+                is_all=extract_count,
+                key=self.decrypt_key_var.get().strip() or None,
+            )
         except Exception as exc:
             messagebox.showerror("错误", str(exc))
             return
 
         if not result:
             self._reset_decrypt()
-            messagebox.showwarning("提示", "当前图片中没有可解构的隐藏文件。")
+            messagebox.showwarning("提示", "当前图片中没有可解析的隐藏文件。")
             return
 
-        messagebox.showinfo("完成", "文件解构完成。")
+        messagebox.showinfo("完成", "文件解析完成。")
         self._reset_decrypt()
 
     def wash(self):
-        """校验清洗参数，移除隐藏分块，并展示执行结果。"""
         if not self.wash_file:
             messagebox.showerror("错误", "请先选择待清洗图片。")
             return
